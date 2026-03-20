@@ -1,6 +1,7 @@
 import { AIProvider, ProviderStatus } from './aiProvider';
 import { AiConcepts, PromptData, RefinementSuggestion } from '../types';
 import { parseJsonFromText } from './jsonParser';
+import { sanitize } from './sanitize';
 
 const DEFAULT_OLLAMA_URL = 'http://localhost:11434';
 const DEFAULT_MODEL = 'llama3';
@@ -40,12 +41,6 @@ export const listModels = async (): Promise<string[]> => {
     return [];
   }
 };
-
-// P1.2 — Strips HTML/XML tags and backticks to prevent breaking prompt structure.
-// User-controlled text is also wrapped in XML delimiters in each prompt template
-// so the model can clearly distinguish system instructions from user content.
-const sanitize = (s: string): string =>
-  s.replace(/<[^>]*>/g, '').replace(/`/g, "'").trim();
 
 // Re-export parseJsonFromText for backward compatibility with existing test imports
 export { parseJsonFromText } from './jsonParser';

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useAsyncOperation } from '../hooks/useAsyncOperation';
 
@@ -88,6 +88,11 @@ describe('useAsyncOperation', () => {
     expect(result.current.isLoading).toBe(false);
   });
 
+  it('exposes an abort() method', () => {
+    const { result } = renderHook(() => useAsyncOperation(async () => 'value'));
+    expect(typeof result.current.abort).toBe('function');
+  });
+
   it('clears previous data/error at the start of a new execution', async () => {
     let shouldFail = true;
     const { result } = renderHook(() =>
@@ -108,5 +113,63 @@ describe('useAsyncOperation', () => {
     await act(async () => { await result.current.execute(); });
     expect(result.current.error).toBeNull();
     expect(result.current.data).toBe('success');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// abort() behaviour
+// ---------------------------------------------------------------------------
+describe('useAsyncOperation — abort', () => {
+  it('abort() while loading sets isLoading to false', async () => {
+    let resolve!: (v: string) => void;
+    const promise = new Promise<string>(res => { resolve = res; });
+    const { result } = renderHook(() => useAsyncOperation(() => promise));
+
+    act(() => { result.current.execute(); });
+    expect(result.current.isLoading).toBe(true);
+
+    act(() => { result.current.abort(); });
+    expect(result.current.isLoading).toBe(false);
+
+    // Silence the unhandled rejection from execute() when the promise eventually resolves
+    await act(async () => { resolve('too late'); });
+  });
+
+  it('abort() prevents data from being set when the promise later resolves', async () => {
+    let resolve!: (v: string) => void;
+    const promise = new Promise<string>(res => { resolve = res; });
+    const { result } = renderHook(() => useAsyncOperation(() => promise));
+
+    act(() => { result.current.execute(); });
+    act(() => { result.current.abort(); });
+
+    await act(async () => { resolve('should be ignored'); });
+
+    expect(result.current.data).toBeNull();
+    expect(result.current.error).toBeNull();
+  });
+
+  it('abort() while not loading is a no-op', () => {
+    const { result } = renderHook(() => useAsyncOperation(async () => 'value'));
+    // Should not throw
+    expect(() => act(() => { result.current.abort(); })).not.toThrow();
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it('a new execute() after abort() works correctly', async () => {
+    const fn = vi.fn()
+      .mockResolvedValueOnce('first')
+      .mockResolvedValueOnce('second');
+
+    const { result } = renderHook(() => useAsyncOperation(fn));
+
+    // First call
+    await act(async () => { await result.current.execute(); });
+    expect(result.current.data).toBe('first');
+
+    // Abort (no-op, already done), then re-execute
+    act(() => { result.current.abort(); });
+    await act(async () => { await result.current.execute(); });
+    expect(result.current.data).toBe('second');
   });
 });

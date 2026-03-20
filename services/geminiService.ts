@@ -2,6 +2,7 @@
 import { AIProvider, ProviderStatus } from './aiProvider';
 import { AiConcepts, RefinementSuggestion, PromptData } from '../types';
 import { parseJsonFromText } from './jsonParser';
+import { sanitize } from './sanitize';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:3001';
 const API_SECRET = (import.meta.env.VITE_API_SECRET as string) || '';
@@ -24,11 +25,6 @@ export const GEMINI_MODELS = [
 export const getGeminiModel = (): string =>
   localStorage.getItem(GEMINI_MODEL_STORAGE_KEY) || DEFAULT_GEMINI_MODEL;
 
-// P1.2 — Strips HTML/XML tags and backticks to prevent breaking prompt structure.
-// User-controlled text is also wrapped in XML delimiters in each prompt template
-// so the model can clearly distinguish system instructions from user content.
-const sanitize = (s: string): string =>
-  s.replace(/<[^>]*>/g, '').replace(/`/g, "'").trim();
 
 const makeGeminiRequest = async (body: Record<string, unknown>): Promise<string> => {
   const controller = new AbortController();
