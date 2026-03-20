@@ -14,6 +14,18 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 app.use(cors({ origin: allowedOrigins }));
 app.use(express.json({ limit: '100kb' }));
 
+// 1.1 — Shared-secret auth via X-API-Key header.
+// Only enforced when API_SECRET is set; omit in dev to keep zero-config setup.
+const API_SECRET = process.env.API_SECRET;
+if (API_SECRET) {
+  app.use('/api/', (req, res, next) => {
+    if (req.headers['x-api-key'] !== API_SECRET) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    next();
+  });
+}
+
 // P1.1 — Rate limiting: max 30 requests per minute per IP.
 const apiLimiter = rateLimit({
   windowMs: 60_000,
@@ -76,7 +88,7 @@ app.post('/api/gemini/generate-content', async (req, res) => {
 
     res.json({ text: response.text });
   } catch (error) {
-    console.error('Gemini API Error:', error);
+    console.error('Gemini API Error:', error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: 'An error occurred while processing your request.' });
   }
 });

@@ -4,6 +4,7 @@ import { AiConcepts, RefinementSuggestion, PromptData } from '../types';
 import { parseJsonFromText } from './jsonParser';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:3001';
+const API_SECRET = (import.meta.env.VITE_API_SECRET as string) || '';
 
 /** localStorage key used to persist the user-selected Gemini model. */
 export const GEMINI_MODEL_STORAGE_KEY = 'geminiModel';
@@ -32,10 +33,12 @@ const sanitize = (s: string): string =>
 const makeGeminiRequest = async (body: Record<string, unknown>): Promise<string> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 60_000);
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (API_SECRET) headers['x-api-key'] = API_SECRET;
   try {
     const response = await fetch(`${API_BASE_URL}/api/gemini/generate-content`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       // P4.2 — Send the user-selected model to the proxy so the server can use it.
       body: JSON.stringify({ ...body, model: getGeminiModel() }),
       signal: controller.signal,
@@ -58,7 +61,9 @@ export const GeminiProvider: AIProvider = {
 
   status: async (): Promise<ProviderStatus> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/health`, { signal: AbortSignal.timeout(5000) });
+      const healthHeaders: Record<string, string> = {};
+      if (API_SECRET) healthHeaders['x-api-key'] = API_SECRET;
+      const response = await fetch(`${API_BASE_URL}/api/health`, { headers: healthHeaders, signal: AbortSignal.timeout(5000) });
       if (response.ok) return { configured: true };
       return { configured: false, error: 'Gemini proxy server returned an error' };
     } catch {
