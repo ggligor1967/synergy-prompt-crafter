@@ -64,13 +64,28 @@ Provider is selected at runtime via toggle in the UI; selection also persists to
 - `POST /api/gemini/generate-content` — proxies to Gemini with 100KB body limit and 50K character prompt cap
 
 ### `useAsyncOperation` Hook
-Generic hook for async state: `{ data, error, isLoading, execute, reset }`. Used throughout `App.tsx` for all AI calls.
+Generic hook for async state: `{ data, error, isLoading, execute, reset, abort }`. Each `execute()` call creates a new `AbortController`; component unmount auto-aborts. Used in every stage component for AI calls.
+
+### Prompt History (Phase 2)
+- **`services/storage.ts`** — IndexedDB via `idb`. CRUD: `savePrompt`, `updatePrompt`, `deletePrompt`, `getAllPrompts`, `toggleFavorite`. `_resetDB(null)` resets the cached DB handle (used in tests with `fake-indexeddb`).
+- **`components/PromptHistory.tsx`** — Fixed right-panel sidebar. Features: search (title/coreIdea/prompt text), favorites filter, star/restore/delete-with-confirmation per record. Reloads when `refreshTrigger` prop increments.
+- **`App.tsx`** — `handleSavePrompt` (saves from FinalPromptStage, increments `historyRefreshTrigger`), `handleRestorePrompt` (restores state and jumps to FINAL_PROMPT stage). History button in toolbar toggles the panel.
+- **`FinalPromptStage.tsx`** — Optional `onSave` prop; when provided, renders "Save to History" button.
+
+### Security (Phase 1)
+- X-API-Key shared-secret on the Express proxy: set `API_SECRET` in `server/.env` and `VITE_API_SECRET` in `.env.local`. Auth is skipped when the env var is absent.
+- `services/sanitize.ts` — strips HTML/XML tags and backticks; used by both AI providers before embedding user text in prompts.
 
 ## Test Structure
 
-Tests live in `__tests__/` and use Vitest + jsdom + Testing Library. 61 tests across 5 suites:
+Tests live in `__tests__/` and use Vitest + jsdom + Testing Library. 164 tests, 82% coverage:
 - `geminiService.test.ts` — JSON parsing, provider status, `generateConcepts`
 - `ollamaService.test.ts` — Full Ollama provider coverage including model listing
+- `sanitize.test.ts` — HTML/XSS stripping, backtick replacement
+- `storage.test.ts` — IndexedDB CRUD via `fake-indexeddb` (sets `globalThis.indexedDB = new IDBFactory()` in `beforeEach`)
+- `promptHistory.test.tsx` — Sidebar UI: search, favorites filter, restore, delete confirmation, refreshTrigger
 - `settingsPanel.test.tsx` — Settings modal UI behavior
 - `stageNavigation.test.ts` — Wizard forward/back navigation and boundary clamping
-- `useAsyncOperation.test.ts` — Hook states (loading, data, error, reset)
+- `useAsyncOperation.test.ts` — Hook states (loading, data, error, reset, abort)
+- `stages/IdeationStage.test.tsx` — Concept generation, custom discipline validation
+- `stages/AIRefinementStage.test.tsx` — Variations, improvements, apply suggestion

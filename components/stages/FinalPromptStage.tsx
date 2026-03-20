@@ -3,7 +3,7 @@ import { AIProvider } from '../../services/aiProvider';
 import { useAsyncOperation } from '../../hooks/useAsyncOperation';
 import ActionButton from '../ActionButton';
 import LoadingSpinner from '../LoadingSpinner';
-import { ClipboardIcon, PaperAirplaneIcon, RefreshIcon, ArrowLeftIcon } from '../Icons';
+import { ClipboardIcon, PaperAirplaneIcon, RefreshIcon, ArrowLeftIcon, BookmarkIcon } from '../Icons';
 
 interface FinalPromptStageProps {
   generatedPrompt: string;
@@ -14,11 +14,12 @@ interface FinalPromptStageProps {
   onCopyToClipboard: (text: string) => void;
   onReset: () => void;
   onBack: () => void;
+  onSave?: () => void;
 }
 
 const FinalPromptStage: React.FC<FinalPromptStageProps> = ({
   generatedPrompt, isProviderReady, providerStatusChecking, providerErrorMessage,
-  activeProvider, onCopyToClipboard, onReset, onBack,
+  activeProvider, onCopyToClipboard, onReset, onBack, onSave,
 }) => {
   const testFn = useCallback(
     () => activeProvider.testGeneratedPrompt(generatedPrompt),
@@ -39,6 +40,9 @@ const FinalPromptStage: React.FC<FinalPromptStageProps> = ({
       </div>
       <div className="flex flex-wrap gap-4">
         <ActionButton onClick={() => onCopyToClipboard(generatedPrompt)} icon={<ClipboardIcon />} disabled={!generatedPrompt} title="Copy prompt to clipboard">Copy Prompt</ActionButton>
+        {onSave && (
+          <ActionButton onClick={onSave} icon={<BookmarkIcon />} disabled={!generatedPrompt} variant="secondary" title="Save to history">Save to History</ActionButton>
+        )}
         <ActionButton
           onClick={handleTest}
           icon={testPromptOp.isLoading ? <LoadingSpinner size="w-4 h-4" /> : <PaperAirplaneIcon />}

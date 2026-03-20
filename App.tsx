@@ -10,7 +10,9 @@ import StageProgressBar from './components/StageProgressBar';
 import ProviderSelector from './components/ProviderSelector';
 import SettingsPanel from './components/SettingsPanel';
 import { useToast } from './components/Toast';
-import { GearIcon } from './components/Icons';
+import { GearIcon, HistoryIcon } from './components/Icons';
+import PromptHistory from './components/PromptHistory';
+import { savePrompt } from './services/storage';
 import IdeationStage from './components/stages/IdeationStage';
 import ConceptExplorationStage from './components/stages/ConceptExplorationStage';
 import PromptConstructionStage from './components/stages/PromptConstructionStage';
@@ -27,6 +29,8 @@ const App: React.FC = () => {
   const [selectedProviderId, setSelectedProviderId] = useState<string>(() => localStorage.getItem('selectedProviderId') || 'gemini');
   const [providerStatuses, setProviderStatuses] = useState<Record<string, ProviderStatusState>>(() => Object.fromEntries(ALL_PROVIDERS.map(p => [p.id, 'checking' as ProviderStatusState])));
   const [showSettings, setShowSettings] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
   const [selectedOllamaModel, setSelectedOllamaModel] = useState<string>(() => localStorage.getItem(OLLAMA_MODEL_STORAGE_KEY) || 'llama3');
   const [selectedGeminiModel, setSelectedGeminiModel] = useState<string>(getGeminiModel);
 
@@ -104,6 +108,23 @@ const App: React.FC = () => {
     });
   }, []);
 
+  const handleSavePrompt = useCallback(async () => {
+    const title = coreIdea.slice(0, 60) || 'Untitled Prompt';
+    await savePrompt({ title, coreIdea, promptData, generatedPrompt, disciplines: selectedDisciplines, tags: [], isFavorite: false });
+    setHistoryRefreshTrigger(t => t + 1);
+    showToast('Prompt saved to history!', 'success');
+  }, [coreIdea, promptData, generatedPrompt, selectedDisciplines, showToast]);
+
+  const handleRestorePrompt = useCallback((record: import('./services/storage').PromptRecord) => {
+    setCoreIdea(record.coreIdea);
+    setSelectedDisciplines(record.disciplines);
+    setPromptData(record.promptData);
+    setGeneratedPrompt(record.generatedPrompt);
+    setCurrentStage(AppStage.FINAL_PROMPT);
+    setShowHistory(false);
+    showToast('Prompt restored!', 'success');
+  }, [showToast]);
+
   const copyToClipboard = useCallback((text: string) => {
     navigator.clipboard.writeText(text)
       .then(() => showToast('Prompt copied to clipboard!', 'success'))
@@ -123,7 +144,7 @@ const App: React.FC = () => {
       case AppStage.AI_REFINEMENT:
         return <AIRefinementStage {...stageProps} generatedPrompt={generatedPrompt} refinementSuggestions={refinementSuggestions} onSuggestionsChange={setRefinementSuggestions} onApplySuggestion={applySuggestion} onNext={handleNextStage} onBack={handlePrevStage} />;
       case AppStage.FINAL_PROMPT:
-        return <FinalPromptStage {...stageProps} generatedPrompt={generatedPrompt} onCopyToClipboard={copyToClipboard} onReset={resetApp} onBack={handlePrevStage} />;
+        return <FinalPromptStage {...stageProps} generatedPrompt={generatedPrompt} onCopyToClipboard={copyToClipboard} onReset={resetApp} onBack={handlePrevStage} onSave={handleSavePrompt} />;
       default:
         return <p>Unknown stage.</p>;
     }
@@ -138,6 +159,10 @@ const App: React.FC = () => {
       <main className="w-full max-w-3xl bg-slate-800/50 backdrop-blur-md shadow-2xl rounded-xl p-6 md:p-8">
         <div className="mb-4 flex items-center justify-between gap-2 flex-wrap">
           <ProviderSelector providers={ALL_PROVIDERS.map(p => ({ provider: p, status: providerStatuses[p.id] ?? 'checking' }))} selectedId={selectedProviderId} onSelect={handleSelectProvider} />
+          <button onClick={() => setShowHistory(v => !v)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-slate-400 border border-slate-700 bg-slate-800 hover:border-sky-600 hover:text-sky-300 transition-all" title="Prompt history" aria-label="Prompt history">
+            <HistoryIcon className="w-4 h-4" />
+            History
+          </button>
           <button onClick={() => setShowSettings(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-slate-400 border border-slate-700 bg-slate-800 hover:border-sky-600 hover:text-sky-300 transition-all" title="Open settings" aria-label="Open settings">
             <GearIcon className="w-4 h-4" />
             Settings
@@ -163,6 +188,13 @@ const App: React.FC = () => {
         )}
         {renderStage()}
       </main>
+      {showHistory && (
+        <PromptHistory
+          onRestore={handleRestorePrompt}
+          onClose={() => setShowHistory(false)}
+          refreshTrigger={historyRefreshTrigger}
+        />
+      )}
       <footer className="mt-12 text-center text-sm text-slate-500">
         <p>&copy; {new Date().getFullYear()} Synergy Prompt Crafter. Powered by {activeProvider.name}.</p>
       </footer>
