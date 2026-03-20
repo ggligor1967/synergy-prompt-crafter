@@ -2,6 +2,7 @@ import { AIProvider, ProviderStatus } from './aiProvider';
 import { AiConcepts, PromptData, RefinementSuggestion } from '../types';
 import { parseJsonFromText } from './jsonParser';
 import { sanitize } from './sanitize';
+import { VARIATION_ID_PREFIX, IMPROVEMENT_ID_PREFIX } from '../constants';
 
 const DEFAULT_OLLAMA_URL = 'http://localhost:11434';
 const DEFAULT_MODEL = 'llama3';
@@ -145,7 +146,7 @@ ${sanitize(fullPrompt)}
     const responseText = await makeOllamaRequest(prompt, { options: { temperature: 0.8 } });
     const variations = parseJsonFromText<string[]>(responseText);
     return (variations || []).map((promptText, index) => ({
-      id: `var-${Date.now()}-${index}`,
+      id: `${VARIATION_ID_PREFIX}-${Date.now()}-${index}`,
       promptText,
       type: 'variation' as const,
     }));
@@ -165,7 +166,7 @@ ${sanitize(fullPrompt)}
     const responseText = await makeOllamaRequest(prompt, { options: { temperature: 0.6 } });
     const improvements = parseJsonFromText<{ suggestion: string; improvedText: string }[]>(responseText);
     return (improvements || []).map((item, index) => ({
-      id: `imp-${Date.now()}-${index}`,
+      id: `${IMPROVEMENT_ID_PREFIX}-${Date.now()}-${index}`,
       promptText: item.improvedText,
       explanation: item.suggestion,
       type: 'improvement' as const,

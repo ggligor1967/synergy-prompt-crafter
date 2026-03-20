@@ -66,6 +66,11 @@ Provider is selected at runtime via toggle in the UI; selection also persists to
 ### `useAsyncOperation` Hook
 Generic hook for async state: `{ data, error, isLoading, execute, reset, abort }`. Each `execute()` call creates a new `AbortController`; component unmount auto-aborts. Used in every stage component for AI calls.
 
+### Constants & Debounce (Phase 3)
+- **`constants.ts`**: `TOAST_MESSAGES` (all user-facing toast strings as typed constants), `VARIATION_ID_PREFIX`/`IMPROVEMENT_ID_PREFIX` (used in both service files to generate suggestion IDs).
+- **`hooks/useDebounce.ts`**: Generic `useDebounce<T>(value, delay)` hook. Applied in `PromptHistory.tsx` on the search input (250ms delay). Tests use `vi.useFakeTimers()`.
+- Search filter tests that assert post-debounce state use `waitFor` (real timers) so the 250ms debounce can fire naturally.
+
 ### Prompt History (Phase 2)
 - **`services/storage.ts`** — IndexedDB via `idb`. CRUD: `savePrompt`, `updatePrompt`, `deletePrompt`, `getAllPrompts`, `toggleFavorite`. `_resetDB(null)` resets the cached DB handle (used in tests with `fake-indexeddb`).
 - **`components/PromptHistory.tsx`** — Fixed right-panel sidebar. Features: search (title/coreIdea/prompt text), favorites filter, star/restore/delete-with-confirmation per record. Reloads when `refreshTrigger` prop increments.
@@ -87,5 +92,6 @@ Tests live in `__tests__/` and use Vitest + jsdom + Testing Library. 164 tests, 
 - `settingsPanel.test.tsx` — Settings modal UI behavior
 - `stageNavigation.test.ts` — Wizard forward/back navigation and boundary clamping
 - `useAsyncOperation.test.ts` — Hook states (loading, data, error, reset, abort)
+- `useDebounce.test.ts` — Timing behavior with fake timers (6 tests)
 - `stages/IdeationStage.test.tsx` — Concept generation, custom discipline validation
 - `stages/AIRefinementStage.test.tsx` — Variations, improvements, apply suggestion

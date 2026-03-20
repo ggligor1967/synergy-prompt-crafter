@@ -118,8 +118,8 @@ describe('PromptHistory — search', () => {
     await waitFor(() => screen.getByText('Alpha Prompt'));
 
     fireEvent.change(screen.getByLabelText(/search prompts/i), { target: { value: 'alpha' } });
+    await waitFor(() => expect(screen.queryByText('Beta Prompt')).not.toBeInTheDocument());
     expect(screen.getByText('Alpha Prompt')).toBeInTheDocument();
-    expect(screen.queryByText('Beta Prompt')).not.toBeInTheDocument();
   });
 
   it('filters records by coreIdea', async () => {
@@ -131,8 +131,8 @@ describe('PromptHistory — search', () => {
     await waitFor(() => screen.getByText('A'));
 
     fireEvent.change(screen.getByLabelText(/search prompts/i), { target: { value: 'quantum' } });
+    await waitFor(() => expect(screen.queryByText('B')).not.toBeInTheDocument());
     expect(screen.getByText('A')).toBeInTheDocument();
-    expect(screen.queryByText('B')).not.toBeInTheDocument();
   });
 
   it('shows "no prompts match" message when search has no results', async () => {
@@ -141,7 +141,7 @@ describe('PromptHistory — search', () => {
     await waitFor(() => screen.getByText('My Test Prompt'));
 
     fireEvent.change(screen.getByLabelText(/search prompts/i), { target: { value: 'zzz-no-match' } });
-    expect(screen.getByText(/no prompts match/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/no prompts match/i)).toBeInTheDocument());
   });
 });
 

@@ -51,6 +51,14 @@ export const API_KEY_ERROR_MESSAGE = "AI provider not configured. Start the prox
 export const VARIATION_ID_PREFIX = 'var';
 export const IMPROVEMENT_ID_PREFIX = 'imp';
 
+export const TOAST_MESSAGES = {
+  COPIED_SUCCESS: 'Prompt copied to clipboard!',
+  COPY_FAILED: 'Failed to copy prompt.',
+  SAVED_SUCCESS: 'Prompt saved to history!',
+  RESTORED_SUCCESS: 'Prompt restored!',
+  SWITCHED_PROVIDER: (name: string) => `Switched to ${name}`,
+} as const;
+
 export const API_CONFIG = {
   geminiBaseUrl: import.meta.env.VITE_API_BASE_URL as string || 'http://localhost:3001',
   ollamaUrl: import.meta.env.VITE_OLLAMA_URL as string || 'http://localhost:11434',

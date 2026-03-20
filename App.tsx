@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppStage, PromptData, AiConcepts, RefinementSuggestion } from './types';
-import { INITIAL_PROMPT_DATA } from './constants';
+import { INITIAL_PROMPT_DATA, TOAST_MESSAGES } from './constants';
 import { AIProvider } from './services/aiProvider';
 import { GeminiProvider, GEMINI_MODEL_STORAGE_KEY, getGeminiModel } from './services/geminiService';
 import { OllamaProvider, OLLAMA_MODEL_STORAGE_KEY, listModels } from './services/ollamaService';
@@ -66,7 +66,7 @@ const App: React.FC = () => {
   const handleSelectProvider = (id: string) => {
     localStorage.setItem('selectedProviderId', id);
     setSelectedProviderId(id);
-    showToast(`Switched to ${ALL_PROVIDERS.find(p => p.id === id)?.name ?? id}`, 'info');
+    showToast(TOAST_MESSAGES.SWITCHED_PROVIDER(ALL_PROVIDERS.find(p => p.id === id)?.name ?? id), 'info');
   };
 
   const handleNextStage = useCallback(() => setCurrentStage(prev => getNextStage(prev)), []);
@@ -112,7 +112,7 @@ const App: React.FC = () => {
     const title = coreIdea.slice(0, 60) || 'Untitled Prompt';
     await savePrompt({ title, coreIdea, promptData, generatedPrompt, disciplines: selectedDisciplines, tags: [], isFavorite: false });
     setHistoryRefreshTrigger(t => t + 1);
-    showToast('Prompt saved to history!', 'success');
+    showToast(TOAST_MESSAGES.SAVED_SUCCESS, 'success');
   }, [coreIdea, promptData, generatedPrompt, selectedDisciplines, showToast]);
 
   const handleRestorePrompt = useCallback((record: import('./services/storage').PromptRecord) => {
@@ -122,13 +122,13 @@ const App: React.FC = () => {
     setGeneratedPrompt(record.generatedPrompt);
     setCurrentStage(AppStage.FINAL_PROMPT);
     setShowHistory(false);
-    showToast('Prompt restored!', 'success');
+    showToast(TOAST_MESSAGES.RESTORED_SUCCESS, 'success');
   }, [showToast]);
 
   const copyToClipboard = useCallback((text: string) => {
     navigator.clipboard.writeText(text)
-      .then(() => showToast('Prompt copied to clipboard!', 'success'))
-      .catch(() => showToast('Failed to copy prompt.', 'error'));
+      .then(() => showToast(TOAST_MESSAGES.COPIED_SUCCESS, 'success'))
+      .catch(() => showToast(TOAST_MESSAGES.COPY_FAILED, 'error'));
   }, [showToast]);
 
   const stageProps = { isProviderReady, providerStatusChecking, providerErrorMessage, activeProvider };

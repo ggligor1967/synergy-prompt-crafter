@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { PromptRecord, getAllPrompts, deletePrompt, toggleFavorite } from '../services/storage';
+import { useDebounce } from '../hooks/useDebounce';
 
 interface PromptHistoryProps {
   onRestore: (record: PromptRecord) => void;
@@ -34,6 +35,7 @@ const RestoreIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
 const PromptHistory: React.FC<PromptHistoryProps> = ({ onRestore, onClose, refreshTrigger }) => {
   const [records, setRecords] = useState<PromptRecord[]>([]);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 250);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
@@ -57,8 +59,8 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ onRestore, onClose, refre
 
   const filtered = records.filter(r => {
     if (favoritesOnly && !r.isFavorite) return false;
-    if (!search) return true;
-    const q = search.toLowerCase();
+    if (!debouncedSearch) return true;
+    const q = debouncedSearch.toLowerCase();
     return r.title.toLowerCase().includes(q) || r.coreIdea.toLowerCase().includes(q) || r.generatedPrompt.toLowerCase().includes(q);
   });
 

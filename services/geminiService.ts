@@ -3,6 +3,7 @@ import { AIProvider, ProviderStatus } from './aiProvider';
 import { AiConcepts, RefinementSuggestion, PromptData } from '../types';
 import { parseJsonFromText } from './jsonParser';
 import { sanitize } from './sanitize';
+import { VARIATION_ID_PREFIX, IMPROVEMENT_ID_PREFIX } from '../constants';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:3001';
 const API_SECRET = (import.meta.env.VITE_API_SECRET as string) || '';
@@ -108,7 +109,7 @@ ${sanitize(fullPrompt)}
     });
     const variations = parseJsonFromText<string[]>(responseText);
     return (variations || []).map((promptText, index) => ({
-      id: `var-${Date.now()}-${index}`,
+      id: `${VARIATION_ID_PREFIX}-${Date.now()}-${index}`,
       promptText,
       type: 'variation' as const,
     }));
@@ -131,7 +132,7 @@ ${sanitize(fullPrompt)}
     });
     const improvements = parseJsonFromText<{ suggestion: string; improvedText: string }[]>(responseText);
     return (improvements || []).map((item, index) => ({
-      id: `imp-${Date.now()}-${index}`,
+      id: `${IMPROVEMENT_ID_PREFIX}-${Date.now()}-${index}`,
       promptText: item.improvedText,
       explanation: item.suggestion,
       type: 'improvement' as const,
