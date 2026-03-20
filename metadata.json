@@ -1,0 +1,6 @@
+{
+  "name": "Synergy Prompt Crafter",
+  "description": "A web application to help users craft complex multidisciplinary prompts for AI models, with AI assistance from Gemini for ideation, concept exploration, and refinement.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
