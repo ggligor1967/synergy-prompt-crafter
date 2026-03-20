@@ -1,12 +1,28 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { PromptRecord, getAllPrompts, deletePrompt, toggleFavorite } from '../services/storage';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { PromptRecord, getAllPrompts, deletePrompt, toggleFavorite, updatePrompt } from '../services/storage';
 import { useDebounce } from '../hooks/useDebounce';
+import { sanitize } from '../services/sanitize';
 
 interface PromptHistoryProps {
   onRestore: (record: PromptRecord) => void;
   onClose: () => void;
   refreshTrigger: number;
 }
+
+const TAG_COLORS = [
+  'bg-blue-700 text-blue-100',
+  'bg-purple-700 text-purple-100',
+  'bg-green-700 text-green-100',
+  'bg-amber-700 text-amber-100',
+  'bg-pink-700 text-pink-100',
+  'bg-cyan-700 text-cyan-100',
+];
+
+const getTagColor = (tag: string): string => {
+  const normalized = tag.toLowerCase();
+  const sum = normalized.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  return TAG_COLORS[sum % TAG_COLORS.length];
+};
 
 const StarIcon: React.FC<{ filled: boolean; className?: string }> = ({ filled, className = '' }) => (
   <svg className={className} viewBox="0 0 20 20" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={filled ? 0 : 1.5}>
@@ -38,6 +54,11 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ onRestore, onClose, refre
   const debouncedSearch = useDebounce(search, 250);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [editingTagsId, setEditingTagsId] = useState<string | null>(null);
+  const [editTagValues, setEditTagValues] = useState<string[]>([]);
+  const [newTagInput, setNewTagInput] = useState('');
+  const [tagFilter, setTagFilter] = useState('');
+  const [disciplineFilter, setDisciplineFilter] = useState('');
 
   const load = useCallback(async () => {
     const all = await getAllPrompts();
@@ -57,11 +78,55 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ onRestore, onClose, refre
     await load();
   };
 
+  const handleEditTags = (record: PromptRecord) => {
+    setEditingTagsId(record.id);
+    setEditTagValues([...record.tags]);
+    setNewTagInput('');
+  };
+
+  const handleAddTag = () => {
+    const tag = sanitize(newTagInput.trim());
+    if (tag && !editTagValues.includes(tag)) {
+      setEditTagValues(prev => [...prev, tag]);
+    }
+    setNewTagInput('');
+  };
+
+  const handleRemoveEditTag = (tag: string) => {
+    setEditTagValues(prev => prev.filter(t => t !== tag));
+  };
+
+  const handleSaveTags = async (id: string) => {
+    await updatePrompt(id, { tags: editTagValues });
+    setEditingTagsId(null);
+    await load();
+  };
+
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    records.forEach(r => r.tags.forEach(t => tagSet.add(t)));
+    return Array.from(tagSet).sort();
+  }, [records]);
+
+  const allDisciplines = useMemo(() => {
+    const discSet = new Set<string>();
+    records.forEach(r => r.disciplines.forEach(d => discSet.add(d)));
+    return Array.from(discSet).sort();
+  }, [records]);
+
   const filtered = records.filter(r => {
     if (favoritesOnly && !r.isFavorite) return false;
+    if (tagFilter && !r.tags.includes(tagFilter)) return false;
+    if (disciplineFilter && !r.disciplines.includes(disciplineFilter)) return false;
     if (!debouncedSearch) return true;
     const q = debouncedSearch.toLowerCase();
-    return r.title.toLowerCase().includes(q) || r.coreIdea.toLowerCase().includes(q) || r.generatedPrompt.toLowerCase().includes(q);
+    return (
+      r.title.toLowerCase().includes(q) ||
+      r.coreIdea.toLowerCase().includes(q) ||
+      r.generatedPrompt.toLowerCase().includes(q) ||
+      r.tags.some(t => t.toLowerCase().includes(q)) ||
+      r.disciplines.some(d => d.toLowerCase().includes(q))
+    );
   });
 
   return (
@@ -88,6 +153,9 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ onRestore, onClose, refre
           aria-label="Search prompts"
           className="w-full bg-slate-800 border border-slate-600 rounded-md px-3 py-1.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
         />
+        <p className="text-xs text-slate-500" aria-live="polite">
+          {filtered.length} {filtered.length === 1 ? 'result' : 'results'}
+        </p>
         <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer select-none">
           <input
             type="checkbox"
@@ -97,6 +165,28 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ onRestore, onClose, refre
           />
           Favorites only
         </label>
+        {allTags.length > 0 && (
+          <select
+            value={tagFilter}
+            onChange={e => setTagFilter(e.target.value)}
+            aria-label="Filter by tag"
+            className="w-full bg-slate-800 border border-slate-600 rounded-md px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-sky-500"
+          >
+            <option value="">All tags</option>
+            {allTags.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        )}
+        {allDisciplines.length > 0 && (
+          <select
+            value={disciplineFilter}
+            onChange={e => setDisciplineFilter(e.target.value)}
+            aria-label="Filter by discipline"
+            className="w-full bg-slate-800 border border-slate-600 rounded-md px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-sky-500"
+          >
+            <option value="">All disciplines</option>
+            {allDisciplines.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        )}
       </div>
 
       {/* List */}
@@ -114,6 +204,16 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ onRestore, onClose, refre
                     <p className="text-sm font-medium text-slate-100 truncate" title={record.title}>{record.title}</p>
                     <p className="text-xs text-slate-500 mt-0.5 truncate">{record.coreIdea}</p>
                     <p className="text-xs text-slate-500">{new Date(record.createdAt).toLocaleDateString()}</p>
+                    {/* Tags */}
+                    {record.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {record.tags.map(tag => (
+                          <span key={tag} className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${getTagColor(tag)}`}>
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button
@@ -131,6 +231,15 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ onRestore, onClose, refre
                       <RestoreIcon className="w-4 h-4" />
                     </button>
                     <button
+                      onClick={() => handleEditTags(record)}
+                      aria-label={`Edit tags: ${record.title}`}
+                      className="p-1 rounded text-slate-600 hover:text-sky-400 hover:bg-slate-700 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                      </svg>
+                    </button>
+                    <button
                       onClick={() => setPendingDeleteId(record.id)}
                       aria-label={`Delete prompt: ${record.title}`}
                       className="p-1 rounded text-slate-600 hover:text-red-400 hover:bg-slate-700 transition-colors"
@@ -139,6 +248,58 @@ const PromptHistory: React.FC<PromptHistoryProps> = ({ onRestore, onClose, refre
                     </button>
                   </div>
                 </div>
+
+                {/* Edit Tags UI */}
+                {editingTagsId === record.id && (
+                  <div className="mt-2 p-2 bg-slate-800 border border-slate-600 rounded-md text-xs space-y-2">
+                    <p className="text-slate-300 font-medium">Edit Tags</p>
+                    <div className="flex flex-wrap gap-1">
+                      {editTagValues.map(tag => (
+                        <span key={tag} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${getTagColor(tag)}`}>
+                          {tag}
+                          <button
+                            onClick={() => handleRemoveEditTag(tag)}
+                            aria-label={`Remove tag ${tag}`}
+                            className="hover:opacity-70"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-1">
+                      <input
+                        type="text"
+                        value={newTagInput}
+                        onChange={e => setNewTagInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); handleAddTag(); } }}
+                        placeholder="Add tag…"
+                        aria-label="New tag input"
+                        className="flex-1 bg-slate-700 border border-slate-500 rounded px-2 py-1 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                      />
+                      <button
+                        onClick={handleAddTag}
+                        className="px-2 py-1 bg-slate-600 hover:bg-slate-500 text-slate-200 rounded text-xs"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleSaveTags(record.id)}
+                        className="px-2 py-1 bg-sky-700 hover:bg-sky-600 text-white rounded text-xs"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => setEditingTagsId(null)}
+                        className="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded text-xs"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Delete confirmation */}
                 {pendingDeleteId === record.id && (

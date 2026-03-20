@@ -33,3 +33,11 @@ export interface GroundingSource {
   uri: string;
   title: string;
 }
+
+export interface PromptTemplate {
+  name: string;
+  description: string;
+  coreIdea: string;
+  disciplines: string[];
+  promptData: Partial<PromptData>;
+}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { AppStage, PromptData, AiConcepts, RefinementSuggestion } from './types';
+import { AppStage, PromptData, AiConcepts, RefinementSuggestion, PromptTemplate } from './types';
 import { INITIAL_PROMPT_DATA, TOAST_MESSAGES } from './constants';
 import { AIProvider } from './services/aiProvider';
 import { GeminiProvider, GEMINI_MODEL_STORAGE_KEY, getGeminiModel } from './services/geminiService';
@@ -10,8 +10,9 @@ import StageProgressBar from './components/StageProgressBar';
 import ProviderSelector from './components/ProviderSelector';
 import SettingsPanel from './components/SettingsPanel';
 import { useToast } from './components/Toast';
-import { GearIcon, HistoryIcon } from './components/Icons';
+import { GearIcon, HistoryIcon, DocumentTextIcon } from './components/Icons';
 import PromptHistory from './components/PromptHistory';
+import PromptTemplates from './components/PromptTemplates';
 import { savePrompt } from './services/storage';
 import IdeationStage from './components/stages/IdeationStage';
 import ConceptExplorationStage from './components/stages/ConceptExplorationStage';
@@ -30,6 +31,7 @@ const App: React.FC = () => {
   const [providerStatuses, setProviderStatuses] = useState<Record<string, ProviderStatusState>>(() => Object.fromEntries(ALL_PROVIDERS.map(p => [p.id, 'checking' as ProviderStatusState])));
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
   const [selectedOllamaModel, setSelectedOllamaModel] = useState<string>(() => localStorage.getItem(OLLAMA_MODEL_STORAGE_KEY) || 'llama3');
   const [selectedGeminiModel, setSelectedGeminiModel] = useState<string>(getGeminiModel);
@@ -60,6 +62,25 @@ const App: React.FC = () => {
         if (models.length > 0) { localStorage.setItem(OLLAMA_MODEL_STORAGE_KEY, models[0]); setSelectedOllamaModel(models[0]); }
       }
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Feature 3: Load prompt from shared URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shareParam = params.get('share');
+    if (!shareParam) return;
+    try {
+      const data = JSON.parse(decodeURIComponent(atob(shareParam)));
+      if (!data || typeof data !== 'object') return;
+      if (data.coreIdea && typeof data.coreIdea === 'string') setCoreIdea(data.coreIdea);
+      if (Array.isArray(data.disciplines)) setSelectedDisciplines(data.disciplines.filter((d: unknown) => typeof d === 'string'));
+      if (data.promptData && typeof data.promptData === 'object') setPromptData({ ...INITIAL_PROMPT_DATA, ...data.promptData });
+      if (data.generatedPrompt && typeof data.generatedPrompt === 'string') setGeneratedPrompt(data.generatedPrompt);
+      setCurrentStage(AppStage.FINAL_PROMPT);
+      showToast(TOAST_MESSAGES.SHARED_PROMPT_LOADED, 'info');
+      window.history.replaceState({}, '', window.location.pathname);
+    } catch { /* invalid share param — ignore */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -125,6 +146,19 @@ const App: React.FC = () => {
     showToast(TOAST_MESSAGES.RESTORED_SUCCESS, 'success');
   }, [showToast]);
 
+  // Feature 5: Apply template
+  const handleApplyTemplate = useCallback((template: PromptTemplate) => {
+    setCoreIdea(template.coreIdea);
+    setSelectedDisciplines(template.disciplines);
+    setPromptData({ ...INITIAL_PROMPT_DATA, ...template.promptData });
+    setAiConcepts(null);
+    setGeneratedPrompt('');
+    setRefinementSuggestions([]);
+    setCurrentStage(AppStage.IDEATION);
+    setShowTemplates(false);
+    showToast(TOAST_MESSAGES.TEMPLATE_APPLIED(template.name), 'success');
+  }, [showToast]);
+
   const copyToClipboard = useCallback((text: string) => {
     navigator.clipboard.writeText(text)
       .then(() => showToast(TOAST_MESSAGES.COPIED_SUCCESS, 'success'))
@@ -144,7 +178,7 @@ const App: React.FC = () => {
       case AppStage.AI_REFINEMENT:
         return <AIRefinementStage {...stageProps} generatedPrompt={generatedPrompt} refinementSuggestions={refinementSuggestions} onSuggestionsChange={setRefinementSuggestions} onApplySuggestion={applySuggestion} onNext={handleNextStage} onBack={handlePrevStage} />;
       case AppStage.FINAL_PROMPT:
-        return <FinalPromptStage {...stageProps} generatedPrompt={generatedPrompt} onCopyToClipboard={copyToClipboard} onReset={resetApp} onBack={handlePrevStage} onSave={handleSavePrompt} />;
+        return <FinalPromptStage {...stageProps} generatedPrompt={generatedPrompt} onCopyToClipboard={copyToClipboard} onReset={resetApp} onBack={handlePrevStage} onSave={handleSavePrompt} coreIdea={coreIdea} disciplines={selectedDisciplines} promptData={promptData} />;
       default:
         return <p>Unknown stage.</p>;
     }
@@ -162,6 +196,10 @@ const App: React.FC = () => {
           <button onClick={() => setShowHistory(v => !v)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-slate-400 border border-slate-700 bg-slate-800 hover:border-sky-600 hover:text-sky-300 transition-all" title="Prompt history" aria-label="Prompt history">
             <HistoryIcon className="w-4 h-4" />
             History
+          </button>
+          <button onClick={() => setShowTemplates(v => !v)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-slate-400 border border-slate-700 bg-slate-800 hover:border-sky-600 hover:text-sky-300 transition-all" title="Prompt templates" aria-label="Prompt templates">
+            <DocumentTextIcon className="w-4 h-4" />
+            Templates
           </button>
           <button onClick={() => setShowSettings(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-slate-400 border border-slate-700 bg-slate-800 hover:border-sky-600 hover:text-sky-300 transition-all" title="Open settings" aria-label="Open settings">
             <GearIcon className="w-4 h-4" />
@@ -193,6 +231,12 @@ const App: React.FC = () => {
           onRestore={handleRestorePrompt}
           onClose={() => setShowHistory(false)}
           refreshTrigger={historyRefreshTrigger}
+        />
+      )}
+      {showTemplates && (
+        <PromptTemplates
+          onApplyTemplate={handleApplyTemplate}
+          onClose={() => setShowTemplates(false)}
         />
       )}
       <footer className="mt-12 text-center text-sm text-slate-500">

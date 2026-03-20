@@ -11,9 +11,10 @@ vi.mock('../services/storage', () => ({
   getAllPrompts: vi.fn(),
   deletePrompt: vi.fn(),
   toggleFavorite: vi.fn(),
+  updatePrompt: vi.fn(),
 }));
 
-import { getAllPrompts, deletePrompt, toggleFavorite } from '../services/storage';
+import { getAllPrompts, deletePrompt, toggleFavorite, updatePrompt } from '../services/storage';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -44,6 +45,7 @@ beforeEach(() => {
   vi.mocked(getAllPrompts).mockResolvedValue([]);
   vi.mocked(deletePrompt).mockResolvedValue(undefined);
   vi.mocked(toggleFavorite).mockImplementation(async (id) => makeRecord({ id, isFavorite: true }));
+  vi.mocked(updatePrompt).mockImplementation(async (id, changes) => makeRecord({ id, ...changes }));
 });
 
 // ---------------------------------------------------------------------------
@@ -248,5 +250,183 @@ describe('PromptHistory — refreshTrigger', () => {
     rerender(<PromptHistory {...makeProps({ refreshTrigger: 1 })} />);
     await waitFor(() => expect(getAllPrompts).toHaveBeenCalledTimes(2));
     expect(screen.getByText('My Test Prompt')).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Suite 9 — Tags display (Feature 1)
+// ---------------------------------------------------------------------------
+describe('PromptHistory — tags display', () => {
+  it('renders tags as badge chips for records that have tags', async () => {
+    vi.mocked(getAllPrompts).mockResolvedValue([
+      makeRecord({ id: '1', tags: ['ethics', 'ai'] }),
+    ]);
+    render(<PromptHistory {...makeProps()} />);
+    await waitFor(() => screen.getByText('My Test Prompt'));
+    // Tags appear as spans (chips) — use getAllByText since the tag also appears in filter dropdown
+    const ethicsChips = screen.getAllByText('ethics');
+    expect(ethicsChips.some(el => el.tagName === 'SPAN')).toBe(true);
+    const aiChips = screen.getAllByText('ai');
+    expect(aiChips.some(el => el.tagName === 'SPAN')).toBe(true);
+  });
+
+  it('shows no tag chips when tags array is empty', async () => {
+    vi.mocked(getAllPrompts).mockResolvedValue([makeRecord({ id: '1', tags: [] })]);
+    render(<PromptHistory {...makeProps()} />);
+    await waitFor(() => screen.getByText('My Test Prompt'));
+    // No tag filter dropdown appears since there are no tags
+    expect(screen.queryByLabelText(/filter by tag/i)).not.toBeInTheDocument();
+  });
+
+  it('shows Edit Tags button when record is rendered', async () => {
+    vi.mocked(getAllPrompts).mockResolvedValue([makeRecord()]);
+    render(<PromptHistory {...makeProps()} />);
+    await waitFor(() => screen.getByText('My Test Prompt'));
+    expect(screen.getByLabelText(/edit tags: my test prompt/i)).toBeInTheDocument();
+  });
+
+  it('opens inline tag editor when Edit Tags button is clicked', async () => {
+    vi.mocked(getAllPrompts).mockResolvedValue([makeRecord()]);
+    render(<PromptHistory {...makeProps()} />);
+    await waitFor(() => screen.getByText('My Test Prompt'));
+
+    fireEvent.click(screen.getByLabelText(/edit tags: my test prompt/i));
+    expect(screen.getByText('Edit Tags')).toBeInTheDocument();
+    expect(screen.getByLabelText(/new tag input/i)).toBeInTheDocument();
+  });
+
+  it('adds a new tag via the input', async () => {
+    vi.mocked(getAllPrompts).mockResolvedValue([makeRecord()]);
+    render(<PromptHistory {...makeProps()} />);
+    await waitFor(() => screen.getByText('My Test Prompt'));
+
+    fireEvent.click(screen.getByLabelText(/edit tags: my test prompt/i));
+    fireEvent.change(screen.getByLabelText(/new tag input/i), { target: { value: 'science' } });
+    fireEvent.click(screen.getByRole('button', { name: /^add$/i }));
+    expect(screen.getByText('science')).toBeInTheDocument();
+  });
+
+  it('saves tags by calling updatePrompt and reloading', async () => {
+    vi.mocked(getAllPrompts).mockResolvedValue([makeRecord()]);
+    render(<PromptHistory {...makeProps()} />);
+    await waitFor(() => screen.getByText('My Test Prompt'));
+
+    fireEvent.click(screen.getByLabelText(/edit tags: my test prompt/i));
+    fireEvent.change(screen.getByLabelText(/new tag input/i), { target: { value: 'newtag' } });
+    fireEvent.click(screen.getByRole('button', { name: /^add$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    await waitFor(() => expect(updatePrompt).toHaveBeenCalledWith('rec-1', { tags: ['newtag'] }));
+  });
+
+  it('cancels tag editing without saving', async () => {
+    vi.mocked(getAllPrompts).mockResolvedValue([makeRecord()]);
+    render(<PromptHistory {...makeProps()} />);
+    await waitFor(() => screen.getByText('My Test Prompt'));
+
+    fireEvent.click(screen.getByLabelText(/edit tags: my test prompt/i));
+    expect(screen.getByText('Edit Tags')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }));
+    expect(screen.queryByText('Edit Tags')).not.toBeInTheDocument();
+    expect(updatePrompt).not.toHaveBeenCalled();
+  });
+
+  it('removes a tag chip from the edit list', async () => {
+    vi.mocked(getAllPrompts).mockResolvedValue([makeRecord({ tags: ['alpha'] })]);
+    render(<PromptHistory {...makeProps()} />);
+    await waitFor(() => screen.getByText('My Test Prompt'));
+
+    fireEvent.click(screen.getByLabelText(/edit tags: my test prompt/i));
+    expect(screen.getByLabelText(/remove tag alpha/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText(/remove tag alpha/i));
+
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    await waitFor(() => expect(updatePrompt).toHaveBeenCalledWith('rec-1', { tags: [] }));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Suite 10 — Enhanced Search (Feature 4)
+// ---------------------------------------------------------------------------
+describe('PromptHistory — enhanced search', () => {
+  it('shows results count', async () => {
+    vi.mocked(getAllPrompts).mockResolvedValue([
+      makeRecord({ id: '1', title: 'Alpha' }),
+      makeRecord({ id: '2', title: 'Beta' }),
+    ]);
+    render(<PromptHistory {...makeProps()} />);
+    await waitFor(() => screen.getByText('Alpha'));
+    expect(screen.getByText(/2 results/i)).toBeInTheDocument();
+  });
+
+  it('searches within tags', async () => {
+    vi.mocked(getAllPrompts).mockResolvedValue([
+      makeRecord({ id: '1', title: 'Alpha', tags: ['machinelearning'] }),
+      makeRecord({ id: '2', title: 'Beta', tags: [] }),
+    ]);
+    render(<PromptHistory {...makeProps()} />);
+    await waitFor(() => screen.getByText('Alpha'));
+
+    fireEvent.change(screen.getByLabelText(/search prompts/i), { target: { value: 'machinelearning' } });
+    await waitFor(() => expect(screen.queryByText('Beta')).not.toBeInTheDocument());
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+  });
+
+  it('searches within disciplines', async () => {
+    vi.mocked(getAllPrompts).mockResolvedValue([
+      makeRecord({ id: '1', title: 'Alpha', disciplines: ['Neuroscience'] }),
+      makeRecord({ id: '2', title: 'Beta', disciplines: ['History'] }),
+    ]);
+    render(<PromptHistory {...makeProps()} />);
+    await waitFor(() => screen.getByText('Alpha'));
+
+    fireEvent.change(screen.getByLabelText(/search prompts/i), { target: { value: 'Neuroscience' } });
+    await waitFor(() => expect(screen.queryByText('Beta')).not.toBeInTheDocument());
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+  });
+
+  it('shows tag filter dropdown when records have tags', async () => {
+    vi.mocked(getAllPrompts).mockResolvedValue([
+      makeRecord({ id: '1', tags: ['ai'] }),
+    ]);
+    render(<PromptHistory {...makeProps()} />);
+    await waitFor(() => screen.getByLabelText(/filter by tag/i));
+    expect(screen.getByLabelText(/filter by tag/i)).toBeInTheDocument();
+  });
+
+  it('filters records by tag when tag filter is changed', async () => {
+    vi.mocked(getAllPrompts).mockResolvedValue([
+      makeRecord({ id: '1', title: 'Alpha', tags: ['ai'] }),
+      makeRecord({ id: '2', title: 'Beta', tags: ['biology'] }),
+    ]);
+    render(<PromptHistory {...makeProps()} />);
+    await waitFor(() => screen.getByLabelText(/filter by tag/i));
+
+    fireEvent.change(screen.getByLabelText(/filter by tag/i), { target: { value: 'ai' } });
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+    expect(screen.queryByText('Beta')).not.toBeInTheDocument();
+  });
+
+  it('shows discipline filter dropdown when records have disciplines', async () => {
+    vi.mocked(getAllPrompts).mockResolvedValue([
+      makeRecord({ id: '1', disciplines: ['Physics'] }),
+    ]);
+    render(<PromptHistory {...makeProps()} />);
+    await waitFor(() => screen.getByLabelText(/filter by discipline/i));
+    expect(screen.getByLabelText(/filter by discipline/i)).toBeInTheDocument();
+  });
+
+  it('filters records by discipline', async () => {
+    vi.mocked(getAllPrompts).mockResolvedValue([
+      makeRecord({ id: '1', title: 'Physics Prompt', disciplines: ['Physics'] }),
+      makeRecord({ id: '2', title: 'History Prompt', disciplines: ['History'] }),
+    ]);
+    render(<PromptHistory {...makeProps()} />);
+    await waitFor(() => screen.getByLabelText(/filter by discipline/i));
+
+    fireEvent.change(screen.getByLabelText(/filter by discipline/i), { target: { value: 'Physics' } });
+    expect(screen.getByText('Physics Prompt')).toBeInTheDocument();
+    expect(screen.queryByText('History Prompt')).not.toBeInTheDocument();
   });
 });
