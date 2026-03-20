@@ -186,10 +186,14 @@ describe('IdeationStage — concept generation', () => {
 
     render(<IdeationStage {...props} />);
     fireEvent.click(screen.getByRole('button', { name: /explore concepts/i }));
-    await waitFor(() => expect(provider.generateConcepts).toHaveBeenCalledWith(
+    await waitFor(() => expect(provider.generateConcepts).toHaveBeenCalledTimes(1));
+    expect(provider.generateConcepts).toHaveBeenCalledWith(
       'My research idea',
-      ['Quantum Gastronomy', 'Biomechanics']
-    ));
+      ['Quantum Gastronomy', 'Biomechanics'],
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      })
+    );
   });
 
   it('shows an error alert when concept generation fails', async () => {
