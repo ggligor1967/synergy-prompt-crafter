@@ -59,6 +59,24 @@ Provider is selected at runtime via toggle in the UI; selection also persists to
 - `AiConcepts` — `Record<string, string[]>` mapping discipline names to concept arrays
 - `RefinementSuggestion` — `{ id, text, type: 'variation' | 'improvement' }`
 
+### REST API + Prompt Store (Phase 4)
+
+**`server/store.js`** — JSON file-based prompt store. `createStore(dbPath)` returns `{ getAll({search?}), getById(id), create(data), update(id, changes), delete(id) }`. `defaultStore` is pre-bound to `server/prompts.json` (gitignored). Factory pattern enables dependency injection in tests.
+
+**`server/routes/prompts.js`** — `createPromptsRouter(store?)` factory returns an Express Router for `/api/prompts` CRUD. PUT strips `id`/`createdAt` from body to prevent overwriting.
+
+**`server/app.js`** — `createApp({store?})` factory with CORS, rate limiting (30 req/min), optional X-API-Key auth, Gemini proxy, prompts router, OpenAPI spec at `/api/openapi.json`, and Swagger UI at `/api/docs` (CDN-hosted, no install).
+
+**`server/index.js`** — just calls `createApp().listen(PORT)`.
+
+### CLI Tool (`cli/`)
+
+`cli/api.js` — pure async HTTP client (no side effects): `fetchPrompts`, `fetchPrompt`, `createPrompt`, `updatePrompt`, `deletePrompt`. Throws with HTTP status on error.
+
+`cli/commands.js` — command handlers (`listCommand`, `getCommand`, `deleteCommand`, `exportCommand`, `createCommand`). All accept `{url, json?, ...}` options. `exportCommand` supports `json|markdown|text` formats. Sets `process.exitCode=1` on errors.
+
+`cli/index.js` — Commander wiring. `SYNERGY_API_URL` env var overrides default `http://localhost:3001`.
+
 ### Express Proxy (`server/index.js`)
 - `GET /api/health` — checks `GEMINI_API_KEY` is set
 - `POST /api/gemini/generate-content` — proxies to Gemini with 100KB body limit and 50K character prompt cap
@@ -83,15 +101,20 @@ Generic hook for async state: `{ data, error, isLoading, execute, reset, abort }
 
 ## Test Structure
 
-Tests live in `__tests__/` and use Vitest + jsdom + Testing Library. 164 tests, 82% coverage:
+Tests live in `__tests__/` and use Vitest + jsdom + Testing Library. 236 tests, ~88% coverage:
 - `geminiService.test.ts` — JSON parsing, provider status, `generateConcepts`
 - `ollamaService.test.ts` — Full Ollama provider coverage including model listing
 - `sanitize.test.ts` — HTML/XSS stripping, backtick replacement
-- `storage.test.ts` — IndexedDB CRUD via `fake-indexeddb` (sets `globalThis.indexedDB = new IDBFactory()` in `beforeEach`)
+- `storage.test.ts` — IndexedDB CRUD via `fake-indexeddb`
 - `promptHistory.test.tsx` — Sidebar UI: search, favorites filter, restore, delete confirmation, refreshTrigger
 - `settingsPanel.test.tsx` — Settings modal UI behavior
 - `stageNavigation.test.ts` — Wizard forward/back navigation and boundary clamping
 - `useAsyncOperation.test.ts` — Hook states (loading, data, error, reset, abort)
-- `useDebounce.test.ts` — Timing behavior with fake timers (6 tests)
+- `useDebounce.test.ts` — Timing behavior with fake timers
 - `stages/IdeationStage.test.tsx` — Concept generation, custom discipline validation
 - `stages/AIRefinementStage.test.tsx` — Variations, improvements, apply suggestion
+- `server-store.test.ts` — Store CRUD with per-test isolated temp files
+- `server-prompts.test.ts` — Express routes via `supertest` with per-test isolated store
+- `server-app.test.ts` — `createApp()` factory: health, OpenAPI spec, Swagger UI, Gemini validation, API_SECRET auth
+- `cli-api.test.ts` — HTTP client functions via `vi.stubGlobal('fetch', mockFetch)`
+- `cli-commands.test.ts` — Command handlers: output format, `--json` mode, `process.exitCode=1` on error

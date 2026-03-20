@@ -53,6 +53,7 @@ describe('PromptHistory — rendering', () => {
   it('renders the panel heading', async () => {
     render(<PromptHistory {...makeProps()} />);
     expect(screen.getByText('Prompt History')).toBeInTheDocument();
+    await waitFor(() => expect(getAllPrompts).toHaveBeenCalledTimes(1));
   });
 
   it('shows empty state when there are no records', async () => {
@@ -81,6 +82,7 @@ describe('PromptHistory — rendering', () => {
     render(<PromptHistory {...makeProps()} />);
     expect(screen.getByLabelText(/search prompts/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/favorites only/i)).toBeInTheDocument();
+    await waitFor(() => expect(getAllPrompts).toHaveBeenCalledTimes(1));
   });
 
   it('renders action buttons for each record', async () => {
@@ -100,6 +102,7 @@ describe('PromptHistory — close', () => {
   it('calls onClose when the X button is clicked', async () => {
     const props = makeProps();
     render(<PromptHistory {...props} />);
+    await waitFor(() => expect(getAllPrompts).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByLabelText(/close history panel/i));
     expect(props.onClose).toHaveBeenCalled();
   });

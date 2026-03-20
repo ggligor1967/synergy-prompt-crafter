@@ -1,0 +1,15 @@
+{
+  "name": "synergy-prompt",
+  "version": "1.0.0",
+  "description": "CLI for Synergy Prompt Crafter — create, list, and export AI prompts",
+  "type": "module",
+  "bin": {
+    "synergy-prompt": "index.js"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "commander": "^12.0.0"
+  }
+}

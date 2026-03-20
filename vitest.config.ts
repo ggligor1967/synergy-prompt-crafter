@@ -5,5 +5,12 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['__tests__/setup.ts'],
     globals: true,
+    coverage: {
+      exclude: [
+        'server/index.js',
+        'cli/index.js',
+        'server/openapi.js',
+      ],
+    },
   },
 });

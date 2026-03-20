@@ -60,6 +60,12 @@ const getGeminiProvider = async () => {
   return GeminiProvider;
 };
 
+const renderAppAndWaitForProviderChecks = async () => {
+  const provider = await getGeminiProvider();
+  renderApp();
+  await waitFor(() => expect(provider.status).toHaveBeenCalledTimes(1));
+};
+
 /**
  * Fills the Ideation form and waits until the "Explore Concepts" button is
  * enabled — which confirms the provider status resolved to 'online'.
@@ -104,13 +110,13 @@ afterEach(() => {
 // Suite 1 — Initial render
 // ---------------------------------------------------------------------------
 describe('App — initial render', () => {
-  it('shows the Core Idea textarea (Ideation stage)', () => {
-    renderApp();
+  it('shows the Core Idea textarea (Ideation stage)', async () => {
+    await renderAppAndWaitForProviderChecks();
     expect(screen.getByLabelText(/core idea or question/i)).toBeInTheDocument();
   });
 
-  it('renders all 5 stage names in the progress bar', () => {
-    renderApp();
+  it('renders all 5 stage names in the progress bar', async () => {
+    await renderAppAndWaitForProviderChecks();
     const nav = screen.getByRole('navigation', { name: /progress/i });
     // Each stage name appears twice (sr-only + visible <p>); getAllByText is safe here
     for (const name of ['Ideation', 'Concepts', 'Construct', 'Refine', 'Finalize']) {
@@ -118,13 +124,13 @@ describe('App — initial render', () => {
     }
   });
 
-  it('disables "Explore Concepts" when no idea is entered', () => {
-    renderApp();
+  it('disables "Explore Concepts" when no idea is entered', async () => {
+    await renderAppAndWaitForProviderChecks();
     expect(screen.getByRole('button', { name: /explore concepts/i })).toBeDisabled();
   });
 
-  it('disables "Explore Concepts" when idea is filled but no discipline is selected', () => {
-    renderApp();
+  it('disables "Explore Concepts" when idea is filled but no discipline is selected', async () => {
+    await renderAppAndWaitForProviderChecks();
     fireEvent.change(screen.getByLabelText(/core idea or question/i), {
       target: { value: 'Impact of AI on education' },
     });

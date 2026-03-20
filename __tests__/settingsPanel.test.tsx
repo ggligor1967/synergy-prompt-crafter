@@ -126,9 +126,10 @@ describe('SettingsPanel — model selection', () => {
     expect(props.onModelChange).toHaveBeenCalledWith('gemma3:27b-cloud');
   });
 
-  it('calls onGeminiModelChange when the user selects a Gemini model', () => {
+  it('calls onGeminiModelChange when the user selects a Gemini model', async () => {
     const props = makeProps();
     render(<SettingsPanel {...props} />);
+    await screen.findByLabelText('Ollama Model');
     const select = screen.getByLabelText('Select Gemini model');
     fireEvent.change(select, { target: { value: 'gemini-1.5-pro' } });
     expect(props.onGeminiModelChange).toHaveBeenCalledWith('gemini-1.5-pro');
