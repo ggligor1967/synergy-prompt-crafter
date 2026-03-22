@@ -1,9 +1,12 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { AIProvider } from '../../services/aiProvider';
+import { PromptData } from '../../types';
+import { TOAST_MESSAGES } from '../../constants';
 import { useAsyncOperation } from '../../hooks/useAsyncOperation';
+import { useToast } from '../Toast';
 import ActionButton from '../ActionButton';
 import LoadingSpinner from '../LoadingSpinner';
-import { ClipboardIcon, PaperAirplaneIcon, RefreshIcon, ArrowLeftIcon, BookmarkIcon } from '../Icons';
+import { ClipboardIcon, PaperAirplaneIcon, RefreshIcon, ArrowLeftIcon, BookmarkIcon, ArrowDownTrayIcon, ShareIcon } from '../Icons';
 
 interface FinalPromptStageProps {
   generatedPrompt: string;
@@ -15,12 +18,21 @@ interface FinalPromptStageProps {
   onReset: () => void;
   onBack: () => void;
   onSave?: () => void;
+  coreIdea?: string;
+  disciplines?: string[];
+  promptData?: PromptData;
 }
+
+type ExportFormat = 'txt' | 'md' | 'json';
 
 const FinalPromptStage: React.FC<FinalPromptStageProps> = ({
   generatedPrompt, isProviderReady, providerStatusChecking, providerErrorMessage,
   activeProvider, onCopyToClipboard, onReset, onBack, onSave,
+  coreIdea = '', disciplines = [], promptData,
 }) => {
+  const { showToast } = useToast();
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
   const testFn = useCallback(
     () => activeProvider.testGeneratedPrompt(generatedPrompt),
     [activeProvider, generatedPrompt]
@@ -30,6 +42,49 @@ const FinalPromptStage: React.FC<FinalPromptStageProps> = ({
   const handleTest = async () => {
     if (!generatedPrompt || !isProviderReady) return;
     try { await testPromptOp.execute(); } catch { /* captured in testPromptOp.error */ }
+  };
+
+  const triggerDownload = (content: string, filename: string, mimeType: string) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExport = (format: ExportFormat) => {
+    setShowExportMenu(false);
+    const ts = Date.now();
+    if (format === 'txt') {
+      triggerDownload(generatedPrompt, `prompt-${ts}.txt`, 'text/plain');
+    } else if (format === 'md') {
+      const disciplinesList = disciplines.length > 0 ? disciplines.join(', ') : 'N/A';
+      const content = `# ${coreIdea || 'Prompt'}\n\n**Disciplines:** ${disciplinesList}\n\n\`\`\`\n${generatedPrompt}\n\`\`\`\n`;
+      triggerDownload(content, `prompt-${ts}.md`, 'text/markdown');
+    } else {
+      const data = {
+        title: coreIdea || 'Untitled Prompt',
+        coreIdea,
+        disciplines,
+        promptData,
+        generatedPrompt,
+        exportedAt: new Date().toISOString(),
+      };
+      triggerDownload(JSON.stringify(data, null, 2), `prompt-${ts}.json`, 'application/json');
+    }
+  };
+
+  const handleShare = () => {
+    const data = { coreIdea, disciplines, promptData, generatedPrompt };
+    const encoded = btoa(encodeURIComponent(JSON.stringify(data)));
+    const url = `${window.location.origin}${window.location.pathname}?share=${encoded}`;
+    navigator.clipboard.writeText(url)
+      .then(() => showToast(TOAST_MESSAGES.LINK_COPIED, 'success'))
+      .catch(() => showToast(TOAST_MESSAGES.SHARE_FAILED, 'error'));
   };
 
   return (
@@ -43,6 +98,50 @@ const FinalPromptStage: React.FC<FinalPromptStageProps> = ({
         {onSave && (
           <ActionButton onClick={onSave} icon={<BookmarkIcon />} disabled={!generatedPrompt} variant="secondary" title="Save to history">Save to History</ActionButton>
         )}
+        {/* Export dropdown */}
+        <div className="relative">
+          <ActionButton
+            onClick={() => setShowExportMenu(v => !v)}
+            icon={<ArrowDownTrayIcon />}
+            disabled={!generatedPrompt}
+            variant="secondary"
+            title="Export prompt"
+          >
+            Export
+          </ActionButton>
+          {showExportMenu && (
+            <div className="absolute left-0 top-full mt-1 w-40 bg-slate-800 border border-slate-600 rounded-md shadow-lg z-10">
+              <button
+                onClick={() => handleExport('txt')}
+                className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 rounded-t-md"
+              >
+                Export as .txt
+              </button>
+              <button
+                onClick={() => handleExport('md')}
+                className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-slate-700"
+              >
+                Export as .md
+              </button>
+              <button
+                onClick={() => handleExport('json')}
+                className="w-full text-left px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 rounded-b-md"
+              >
+                Export as .json
+              </button>
+            </div>
+          )}
+        </div>
+        {/* Share button */}
+        <ActionButton
+          onClick={handleShare}
+          icon={<ShareIcon />}
+          disabled={!generatedPrompt}
+          variant="secondary"
+          title="Share this prompt"
+        >
+          Share
+        </ActionButton>
         <ActionButton
           onClick={handleTest}
           icon={testPromptOp.isLoading ? <LoadingSpinner size="w-4 h-4" /> : <PaperAirplaneIcon />}
